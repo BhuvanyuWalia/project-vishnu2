@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Vishnu — Dueling DDQN Naval Navigator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Fira+Code:wght@300;400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ocean-deep:  #060d1a;
+  --ocean-mid:   #0a1628;
+  --ocean-surf:  #0d2040;
+  --panel:       #0b1525;
+  --panel2:      #0e1c30;
+  --border:      #1a2d45;
+  --border2:     #22395a;
+  --gold:        #f0b429;
+  --gold2:       #ffd166;
+  --cyan:        #06b6d4;
+  --teal:        #14b8a6;
+  --coral:       #f43f5e;
+  --green:       #22c55e;
+  --violet:      #8b5cf6;
+  --orange:      #f97316;
+  --sky:         #38bdf8;
+  --text:        #e2e8f0;
+  --muted:       #64748b;
+  --dim:         #334155;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body {
+  background:var(--ocean-deep);
+  color:var(--text);
+  font-family:'Rajdhani',sans-serif;
+  min-height:200vh;
+  overflow-x:hidden;
+}
+body::before {
+  content:'';position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 40%, rgba(6,182,212,0.05) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 80% at 85% 70%, rgba(20,184,166,0.04) 0%, transparent 70%);
+  animation: drift 12s ease-in-out infinite alternate;
+  pointer-events:none;z-index:0;
+}
+@keyframes drift{from{opacity:0.6}to{opacity:1}}
+
+/* ── HEADER ── */
+header {
+  position:sticky;top:0;z-index:200;
+  background:rgba(6,13,26,0.92);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  padding:12px 24px;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+}
+.logo{display:flex;align-items:center;gap:12px;}
+.logo-icon{
+  width:36px;height:36px;
+  background:linear-gradient(135deg,var(--cyan),var(--teal));
+  border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font-size:18px;flex-shrink:0;
+}
+.logo-text h1{
+  font-size:17px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  background:linear-gradient(90deg,var(--text),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.logo-text p{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+.header-badges{display:flex;gap:8px;flex-wrap:wrap;}
+.badge{
+  padding:4px 10px;border-radius:4px;
+  font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;border:1px solid;
+}
+.badge-cyan  {border-color:var(--cyan);color:var(--cyan);background:rgba(6,182,212,0.08);}
+.badge-gold  {border-color:var(--gold);color:var(--gold);background:rgba(240,180,41,0.08);}
+.badge-green {border-color:var(--green);color:var(--green);background:rgba(34,197,94,0.08);}
+.badge-violet{border-color:var(--violet);color:var(--violet);background:rgba(139,92,246,0.08);}
+
+/* ── LAYOUT ── */
+.layout{
+  position:relative;z-index:1;
+  display:grid;
+  grid-template-columns:290px 1fr 260px;
+  gap:0;height:calc(200vh - 63px);
+}
+
+/* ── SIDEBARS ── */
+.sidebar{
+  background:var(--panel);border-right:1px solid var(--border);
+  overflow-y:auto;display:flex;flex-direction:column;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+}
+.sidebar-right{border-right:none;border-left:1px solid var(--border);}
+.s-section{padding:14px;border-bottom:1px solid var(--border);}
+.s-title{
+  font-size:9px;font-weight:700;letter-spacing:3px;
+  text-transform:uppercase;color:var(--gold);margin-bottom:10px;
+  display:flex;align-items:center;gap:8px;
+}
+.s-title::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent);}
+
+/* Mode */
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.mode-btn{
+  padding:9px 6px;border:1px solid var(--border);border-radius:6px;
+  background:transparent;color:var(--muted);
+  font-family:'Rajdhani',sans-serif;
+  font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  cursor:pointer;transition:all 0.2s;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+}
+.mode-btn .mode-icon{font-size:17px;}
+.mode-btn:hover{border-color:var(--cyan);color:var(--cyan);background:rgba(6,182,212,0.06);}
+.mode-btn.active{border-color:var(--gold);color:var(--gold);background:rgba(240,180,41,0.10);}
+
+/* Ports */
+.port-list{list-style:none;display:flex;flex-direction:column;gap:3px;}
+.port-item{
+  display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:5px;
+  cursor:pointer;transition:background 0.15s;border:1px solid transparent;font-size:11px;font-weight:600;
+}
+.port-item:hover{background:rgba(240,180,41,0.07);}
+.port-item.selected-start{background:rgba(244,63,94,0.12);border-color:rgba(244,63,94,0.3);}
+.port-item.selected-end  {background:rgba(20,184,166,0.12);border-color:rgba(20,184,166,0.3);}
+.port-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.port-name{flex:1;}
+.port-rc{font-size:9px;color:var(--muted);font-family:'Fira Code',monospace;}
+
+/* Buttons */
+.nav-btn{
+  width:200%;padding:12px;margin-top:6px;border-radius:7px;border:none;
+  background:linear-gradient(135deg,var(--cyan),var(--teal));color:#060d1a;
+  font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all 0.25s;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.nav-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(6,182,212,0.3);}
+.nav-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none;box-shadow:none;}
+.clear-btn{
+  width:200%;padding:8px;margin-top:6px;border-radius:6px;
+  border:1px solid var(--border);background:transparent;color:var(--muted);
+  font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;
+  letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all 0.2s;
+}
+.clear-btn:hover{border-color:var(--coral);color:var(--coral);}
+
+/* Status */
+.status-row{
+  display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:6px;
+  font-size:11px;font-weight:600;border:1px solid;margin-bottom:7px;
+}
+.status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.status-idle   {border-color:var(--border);color:var(--muted);}
+.status-idle .status-dot{background:var(--muted);}
+.status-ready  {border-color:rgba(34,197,94,0.4);color:var(--green);background:rgba(34,197,94,0.06);}
+.status-ready .status-dot{background:var(--green);animation:pdot 1.5s ease-in-out infinite;}
+.status-running{border-color:rgba(240,180,41,0.4);color:var(--gold);background:rgba(240,180,41,0.06);}
+.status-running .status-dot{background:var(--gold);animation:pdot 0.8s ease-in-out infinite;}
+.status-done   {border-color:rgba(6,182,212,0.4);color:var(--cyan);background:rgba(6,182,212,0.06);}
+.status-done .status-dot{background:var(--cyan);}
+.status-error  {border-color:rgba(244,63,94,0.4);color:var(--coral);background:rgba(244,63,94,0.06);}
+.status-error .status-dot{background:var(--coral);}
+@keyframes pdot{0%,200%{opacity:1;transform:scale(1);}50%{opacity:0.4;transform:scale(0.7);}}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.stat-card{
+  background:var(--panel2);border:1px solid var(--border);
+  border-radius:6px;padding:9px 7px;text-align:center;
+}
+.stat-val{font-size:20px;font-weight:700;font-family:'Rajdhani',sans-serif;color:var(--gold);line-height:1;}
+.stat-lbl{font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;}
+
+/* Inspector */
+.inspector{font-size:11px;display:flex;flex-direction:column;gap:4px;}
+.insp-row{
+  display:flex;justify-content:space-between;padding:3px 0;
+  border-bottom:1px solid rgba(26,45,69,0.5);
+}
+.insp-key{color:var(--muted);}
+.insp-val{color:var(--text);font-weight:600;font-family:'Fira Code',monospace;font-size:10px;}
+
+/* Route log */
+.route-log{
+  max-height:200px;overflow-y:auto;
+  font-family:'Fira Code',monospace;font-size:9px;color:var(--muted);
+  line-height:1.8;scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+}
+.log-entry{padding:1px 0;transition:color 0.1s;}
+.log-entry.highlight{color:var(--cyan);}
+.log-entry.log-goal{color:var(--green);font-weight:600;}
+
+/* Legend */
+.legend-items{display:flex;flex-direction:column;gap:5px;}
+.leg-row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);}
+.leg-sw{width:14px;height:11px;border-radius:2px;flex-shrink:0;}
+
+/* ── MAP ── */
+.map-area{position:relative;overflow:hidden;background:var(--ocean-deep);display:flex;flex-direction:column;}
+canvas{display:block;width:200%;height:200%;cursor:crosshair;image-rendering:pixelated;}
+.map-topbar{
+  position:absolute;top:10px;left:10px;right:10px;
+  display:flex;align-items:flex-start;justify-content:space-between;
+  z-index:50;pointer-events:none;
+}
+.compass{
+  width:48px;height:48px;background:rgba(6,13,26,0.75);border:1px solid var(--border);
+  border-radius:50%;backdrop-filter:blur(6px);pointer-events:none;flex-shrink:0;
+}
+.coord-bar{
+  position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+  background:rgba(6,13,26,0.85);border:1px solid var(--border);border-radius:20px;
+  padding:4px 14px;font-size:10px;font-family:'Fira Code',monospace;
+  color:var(--teal);letter-spacing:1px;z-index:50;white-space:nowrap;backdrop-filter:blur(8px);
+}
+.instruction-overlay{
+  position:absolute;bottom:42px;left:50%;transform:translateX(-50%);
+  background:rgba(6,13,26,0.9);border:1px solid var(--border);border-radius:8px;
+  padding:8px 18px;font-size:11px;color:var(--muted);z-index:50;text-align:center;
+  white-space:nowrap;backdrop-filter:blur(8px);transition:opacity 0.3s;
+}
+.instruction-overlay span{color:var(--gold);}
+.progress-bar-wrap{position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(26,45,69,0.5);z-index:60;}
+.progress-bar{height:200%;width:0%;background:linear-gradient(90deg,var(--cyan),var(--teal));transition:width 0.15s linear;}
+
+/* Phase badge */
+.phase-tag{
+  background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.3);
+  border-radius:5px;padding:5px 10px;font-size:9px;color:var(--violet);
+  letter-spacing:1px;text-transform:uppercase;font-weight:700;
+  display:flex;align-items:center;gap:6px;
+}
+
+/* Toggle */
+.toggle-wrap{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);}
+.tog{position:relative;display:inline-block;width:32px;height:18px;}
+.tog input{opacity:0;width:0;height:0;}
+.tog-slider{
+  position:absolute;inset:0;background:var(--border);border-radius:18px;cursor:pointer;transition:.3s;
+}
+.tog-slider:before{
+  content:'';position:absolute;height:12px;width:12px;left:3px;bottom:3px;
+  background:var(--muted);border-radius:50%;transition:.3s;
+}
+.tog input:checked + .tog-slider{background:var(--teal);}
+.tog input:checked + .tog-slider:before{transform:translateX(14px);background:white;}
+
+@keyframes goal-flash{0%,200%{box-shadow:0 0 0 0 rgba(34,197,94,0);}50%{box-shadow:0 0 30px 10px rgba(34,197,94,0.25);}}
+.goal-reached .map-area{animation:goal-flash 1s ease 3;}
+
+#tip{
+  position:fixed;background:rgba(6,13,26,0.95);border:1px solid var(--border);
+  border-radius:6px;padding:7px 11px;font-size:10px;pointer-events:none;
+  z-index:999;display:none;color:var(--text);line-height:1.7;backdrop-filter:blur(8px);max-width:190px;
+}
+
+@media(max-width:900px){
+  .layout{grid-template-columns:1fr;grid-template-rows:auto 55vh auto;}
+  .sidebar{border-right:none;border-bottom:1px solid var(--border);}
+  .sidebar-right{border-left:none;border-top:1px solid var(--border);}
+}
+</style>
+</head>
+<body>
+<div id="tip"></div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🚢</div>
+    <div class="logo-text">
+      <h1>Project Vishnu — Naval Navigator</h1>
+      <p>Deep Reinforcement Learning · Indian Ocean Region</p>
+    </div>
+  </div>
+  <div class="header-badges">
+    <div class="badge badge-violet">Dueling DDQN</div>
+    <div class="badge badge-gold">200×200 Grid</div>
+    <div class="badge badge-cyan" id="modelBadge">Loading...</div>
+    <div class="badge badge-green">~22 km/cell</div>
+  </div>
+</header>
+
+<div class="layout" id="mainLayout">
+
+  <!-- LEFT SIDEBAR -->
+  <div class="sidebar">
+
+    <div class="s-section">
+      <div class="phase-tag">
+        <span>⚡</span> Phase 3 · Dueling Architecture · 11×11 Vision · Curriculum Learning
+      </div>
+    </div>
+
+    <!-- Mode -->
+    <div class="s-section">
+      <div class="s-title">Navigation Mode</div>
+      <div class="mode-grid">
+        <button class="mode-btn active" id="btnFree" onclick="setPickMode('free')">
+          <span class="mode-icon">🗺️</span>Free Pick
+        </button>
+        <button class="mode-btn" id="btnPort" onclick="setPickMode('port')">
+          <span class="mode-icon">⚓</span>Port Select
+        </button>
+      </div>
+
+      <div id="freePickPanel" style="margin-top:10px;">
+        <div class="status-row status-idle" id="startStatus">
+          <div class="status-dot"></div><span id="startLabel">Click map to set START</span>
+        </div>
+        <div class="status-row status-idle" id="endStatus">
+          <div class="status-dot"></div><span id="endLabel">Click map to set END</span>
+        </div>
+      </div>
+
+      <div id="portPickPanel" style="margin-top:10px;display:none;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">
+          Select <span style="color:var(--coral)">Start</span> then
+          <span style="color:var(--teal)">Destination</span> port:
+        </div>
+        <ul class="port-list" id="portList"></ul>
+      </div>
+    </div>
+
+    <!-- Navigate -->
+    <div class="s-section">
+      <div class="s-title">Agent Control</div>
+      <button class="nav-btn" id="navBtn" onclick="runNavigation()" disabled>
+        <span>🧭</span> Navigate
+      </button>
+      <button class="clear-btn" onclick="clearAll()">✕ Clear Route</button>
+      <div style="margin-top:9px;font-size:10px;color:var(--muted);line-height:1.7;">
+        The <strong style="color:var(--text)">Dueling DDQN agent</strong> runs greedy inference
+        (ε=0) using the trained Phase 3 weights on the 200×200 IOR grid.
+      </div>
+    </div>
+
+    <!-- Display -->
+    <div class="s-section">
+      <div class="s-title">Display</div>
+      <div style="display:flex;flex-direction:column;gap:9px;">
+        <div class="toggle-wrap">
+          <span>Animate Route</span>
+          <label class="tog"><input type="checkbox" id="animToggle" checked><span class="tog-slider"></span></label>
+        </div>
+        <div class="toggle-wrap">
+          <span>Animation Speed</span>
+          <input type="range" min="1" max="10" value="5" id="speedSlider"
+            style="width:75px;accent-color:var(--gold);">
+        </div>
+        <div class="toggle-wrap">
+          <span>Grid Lines</span>
+          <input type="range" min="0" max="60" value="10" id="gridOpacity"
+            style="width:75px;accent-color:var(--gold);" oninput="render()">
+        </div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="s-section">
+      <div class="s-title">Legend</div>
+      <div class="legend-items">
+        <div class="leg-row"><div class="leg-sw" style="background:#0f2a45"></div>Ocean / Water (0)</div>
+        <div class="leg-row"><div class="leg-sw" style="background:#4a8a3f"></div>Land (1)</div>
+        <div class="leg-row"><div class="leg-sw" style="background:#f43f5e"></div>Start position</div>
+        <div class="leg-row"><div class="leg-sw" style="background:#14b8a6"></div>Destination</div>
+        <div class="leg-row"><div class="leg-sw" style="background:#06b6d4"></div>Agent route path</div>
+        <div class="leg-row"><div class="leg-sw" style="background:#f0b429"></div>Named port</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MAP CANVAS -->
+  <div class="map-area" id="mapArea">
+    <canvas id="c"></canvas>
+    <div class="map-topbar">
+      <div></div>
+      <svg class="compass" viewBox="0 0 60 60">
+        <circle cx="30" cy="30" r="27" stroke="rgba(240,180,41,0.15)" stroke-width="1" fill="none"/>
+        <polygon points="30,5 33,27 30,31 27,27" fill="#f0b429" opacity="0.9"/>
+        <polygon points="30,55 33,33 30,29 27,33" fill="rgba(240,180,41,0.25)"/>
+        <circle cx="30" cy="30" r="2.5" fill="#f0b429"/>
+        <text x="30" y="17" text-anchor="middle" fill="#f0b429" font-size="7" font-family="Rajdhani" font-weight="700">N</text>
+        <text x="30" y="50" text-anchor="middle" fill="rgba(240,180,41,0.4)" font-size="6" font-family="Rajdhani">S</text>
+        <text x="9"  y="33" text-anchor="middle" fill="rgba(240,180,41,0.4)" font-size="6" font-family="Rajdhani">W</text>
+        <text x="51" y="33" text-anchor="middle" fill="rgba(240,180,41,0.4)" font-size="6" font-family="Rajdhani">E</text>
+      </svg>
+    </div>
+    <div class="coord-bar" id="coordBar">Hover over grid to inspect</div>
+    <div class="instruction-overlay" id="instrOverlay">
+      <span>Click</span> any water cell to set <span>Start</span> →
+      then click another to set <span>Destination</span>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progBar"></div></div>
+  </div>
+
+  <!-- RIGHT SIDEBAR -->
+  <div class="sidebar sidebar-right">
+
+    <div class="s-section">
+      <div class="s-title">Mission Status</div>
+      <div class="status-row status-idle" id="missionStatus">
+        <div class="status-dot"></div><span id="missionLabel">Awaiting coordinates</span>
+      </div>
+    </div>
+
+    <div class="s-section">
+      <div class="s-title">Route Statistics</div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-val" id="statSteps">—</div><div class="stat-lbl">Steps</div></div>
+        <div class="stat-card"><div class="stat-val" id="statKm">—</div><div class="stat-lbl">Est. km</div></div>
+        <div class="stat-card"><div class="stat-val" id="statBumps">—</div><div class="stat-lbl">Bumps</div></div>
+        <div class="stat-card"><div class="stat-val" id="statReward">—</div><div class="stat-lbl">Reward</div></div>
+      </div>
+      <div style="margin-top:7px;" id="goalResult"></div>
+    </div>
+
+    <div class="s-section">
+      <div class="s-title">Cell Inspector</div>
+      <div class="inspector" id="inspector">
+        <div style="color:var(--muted);font-size:11px;text-align:center;padding:6px 0;">Hover over any cell</div>
+      </div>
+    </div>
+
+    <div class="s-section" style="flex:1;">
+      <div class="s-title">Route Log</div>
+      <div class="route-log" id="routeLog">
+        <div style="color:var(--muted);font-size:10px;">Route steps will appear here...</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+//  CONSTANTS — Phase 3: 200×200 grid, 22 km/cell
+// ════════════════════════════════════════════════
+const ROWS = 200, COLS = 200;
+const KM_PER_CELL = 22;
+
+const PORT_COLORS = {
+  "Mumbai":        "#f43f5e",
+  "Visakhapatnam": "#14b8a6",
+  "Chennai":       "#f97316",
+  "Kochi":         "#8b5cf6",
+  "Colombo":       "#ec4899",
+  "Karachi":       "#22c55e",
+  "Goa":           "#f0b429",
+  "Aden":          "#38bdf8",
+  "Singapore":     "#fb923c",
+};
+
+// ════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════
+let GRID = null, PORTS = {};
+let startCell = null, endCell = null;
+let route = [], animating = false, animFrame = null;
+let lastResult = null;
+let portPickStep = 0;
+let pickMode = 'free';
+
+// ════════════════════════════════════════════════
+//  CANVAS SETUP
+// ════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+let cellW = 1, cellH = 1;
+
+function resizeCanvas() {
+  const area = document.getElementById('mapArea');
+  canvas.width  = area.clientWidth;
+  canvas.height = area.clientHeight;
+  cellW = canvas.width  / COLS;
+  cellH = canvas.height / ROWS;
+  if (GRID) render();
+}
+
+window.addEventListener('resize', resizeCanvas);
+
+// ════════════════════════════════════════════════
+//  GRID FETCH
+// ════════════════════════════════════════════════
+async function loadGrid() {
+  try {
+    const res  = await fetch('/grid');
+    const data = await res.json();
+    GRID  = data.grid;
+    PORTS = data.ports;
+    resizeCanvas();
+    buildPortList();
+    render();
+
+    // Health check for model badge
+    const h = await fetch('/health');
+    const hd = await h.json();
+    const badge = document.getElementById('modelBadge');
+    if (hd.model_loaded) {
+      badge.textContent = 'Model Loaded ✓';
+      badge.className   = 'badge badge-green';
+    } else {
+      badge.textContent = 'Random Weights';
+      badge.className   = 'badge badge-red';
+    }
+  } catch(e) {
+    console.error('Failed to load grid:', e);
+    document.getElementById('modelBadge').textContent = 'Server Error';
+  }
+}
+
+// ════════════════════════════════════════════════
+//  RENDER
+// ════════════════════════════════════════════════
+// Colour constants
+const C_WATER = '#0f2a45';
+const C_LAND  = '#4a8a3f';
+const C_ROUTE = '#06b6d4';
+const C_START = '#f43f5e';
+const C_END   = '#14b8a6';
+const C_PORT  = '#f0b429';
+
+// Pre-rendered grid image
+let gridImg = null;
+
+function buildGridImage() {
+  if (!GRID) return;
+  const offscreen = document.createElement('canvas');
+  offscreen.width  = COLS;
+  offscreen.height = ROWS;
+  const oc = offscreen.getContext('2d');
+  const id = oc.createImageData(COLS, ROWS);
+
+  // Water colour RGB
+  const WR = 15, WG = 42, WB = 69;
+  // Land colour RGB
+  const LR = 74, LG = 138, LB = 63;
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const i = (r * COLS + c) * 4;
+      if (GRID[r][c] === 1) {
+        id.data[i]=LR; id.data[i+1]=LG; id.data[i+2]=LB; id.data[i+3]=255;
+      } else {
+        id.data[i]=WR; id.data[i+1]=WG; id.data[i+2]=WB; id.data[i+3]=255;
+      }
+    }
+  }
+  oc.putImageData(id, 0, 0);
+  gridImg = offscreen;
+}
+
+function render(animRouteUpTo) {
+  if (!GRID) return;
+  if (!gridImg) buildGridImage();
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw base grid (scaled)
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(gridImg, 0, 0, canvas.width, canvas.height);
+
+  // Grid lines
+  const opacity = parseInt(document.getElementById('gridOpacity').value);
+  if (opacity > 0) {
+    ctx.strokeStyle = `rgba(30,50,80,${opacity/200})`;
+    ctx.lineWidth   = 0.5;
+    const step = Math.max(10, Math.round(20));   // every 20 cells for 200×200
+    for (let r = 0; r <= ROWS; r += step) {
+      ctx.beginPath(); ctx.moveTo(0, r*cellH); ctx.lineTo(canvas.width, r*cellH); ctx.stroke();
+    }
+    for (let c = 0; c <= COLS; c += step) {
+      ctx.beginPath(); ctx.moveTo(c*cellW, 0); ctx.lineTo(c*cellW, canvas.height); ctx.stroke();
+    }
+  }
+
+  // Ports
+  for (const [name, pos] of Object.entries(PORTS)) {
+    const pr = pos[0], pc = pos[1];
+    const col = PORT_COLORS[name] || C_PORT;
+    const x = (pc + 0.5) * cellW, y = (pr + 0.5) * cellH;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(3, cellW*1.2), 0, Math.PI*2);
+    ctx.fillStyle = col;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Route path
+  const upTo = (animRouteUpTo !== undefined) ? animRouteUpTo : route.length;
+  if (route.length > 1 && upTo > 0) {
+    ctx.beginPath();
+    ctx.strokeStyle = C_ROUTE;
+    ctx.lineWidth   = Math.max(1, cellW * 0.8);
+    ctx.lineJoin    = 'round';
+    ctx.lineCap     = 'round';
+    ctx.globalAlpha = 0.85;
+    ctx.moveTo((route[0][1]+0.5)*cellW, (route[0][0]+0.5)*cellH);
+    for (let i = 1; i < upTo; i++) {
+      ctx.lineTo((route[i][1]+0.5)*cellW, (route[i][0]+0.5)*cellH);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Ship head dot
+    const head = route[Math.min(upTo-1, route.length-1)];
+    ctx.beginPath();
+    ctx.arc((head[1]+0.5)*cellW, (head[0]+0.5)*cellH, Math.max(3,cellW*1.5), 0, Math.PI*2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+  }
+
+  // Start marker
+  if (startCell) {
+    drawMarker(startCell[0], startCell[1], C_START, '▶');
+  }
+  // End marker
+  if (endCell) {
+    drawMarker(endCell[0], endCell[1], C_END, '⬡');
+  }
+}
+
+function drawMarker(r, c, col, symbol) {
+  const x = (c + 0.5) * cellW, y = (r + 0.5) * cellH;
+  const sz = Math.max(6, cellW * 2.5);
+  ctx.beginPath();
+  ctx.arc(x, y, sz, 0, Math.PI*2);
+  ctx.fillStyle   = col;
+  ctx.globalAlpha = 0.9;
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth   = 1.5;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  if (sz > 8) {
+    ctx.font      = `bold ${Math.round(sz*0.9)}px Rajdhani`;
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(symbol, x, y);
+  }
+}
+
+// ════════════════════════════════════════════════
+//  ANIMATION
+// ════════════════════════════════════════════════
+let animStep = 0;
+
+function animateRoute() {
+  if (!document.getElementById('animToggle').checked) {
+    render(route.length);
+    updateStats();
+    setStatus('done');
+    if (lastResult.reached_goal) document.getElementById('mainLayout').classList.add('goal-reached');
+    return;
+  }
+  animStep = 0;
+  animating = true;
+  const speed = parseInt(document.getElementById('speedSlider').value);
+  const stepsPerFrame = Math.max(1, Math.round(speed * 3));
+
+  function frame() {
+    animStep = Math.min(animStep + stepsPerFrame, route.length);
+    render(animStep);
+    updateRouteLog(animStep);
+    document.getElementById('progBar').style.width = `${(animStep/route.length)*200}%`;
+
+    if (animStep < route.length) {
+      animFrame = requestAnimationFrame(frame);
+    } else {
+      animating = false;
+      updateStats();
+      setStatus('done');
+      if (lastResult.reached_goal) {
+        document.getElementById('mainLayout').classList.add('goal-reached');
+        setTimeout(()=> document.getElementById('mainLayout').classList.remove('goal-reached'), 4000);
+      }
+    }
+  }
+  animFrame = requestAnimationFrame(frame);
+}
+
+// ════════════════════════════════════════════════
+//  CANVAS INTERACTION
+// ════════════════════════════════════════════════
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mx   = e.clientX - rect.left;
+  const my   = e.clientY - rect.top;
+  const c    = Math.floor(mx / cellW);
+  const r    = Math.floor(my / cellH);
+  if (!GRID || r < 0 || r >= ROWS || c < 0 || c >= COLS) return;
+
+  const cellType = GRID[r][c] === 0 ? 'Water' : 'Land';
+  const lat = (35.0 - r * 0.2).toFixed(1);
+  const lon = (60.0 + c * 0.2).toFixed(1);
+
+  document.getElementById('coordBar').textContent =
+    `Row ${r}  Col ${c}  |  ${lat}°N, ${lon}°E  |  ${cellType}`;
+
+  // Tooltip
+  const tip = document.getElementById('tip');
+  tip.innerHTML = `
+    <b style="color:var(--gold)">Cell (${r}, ${c})</b><br>
+    Type: <span style="color:${GRID[r][c]===0?'var(--cyan)':'var(--green)'}">${cellType}</span><br>
+    Lat: ${lat}°N &nbsp; Lon: ${lon}°E
+  `;
+  tip.style.display = 'block';
+  tip.style.left    = (e.clientX + 12) + 'px';
+  tip.style.top     = (e.clientY + 12) + 'px';
+
+  // Inspector
+  updateInspector(r, c, lat, lon, cellType);
+});
+
+canvas.addEventListener('mouseleave', () => {
+  document.getElementById('tip').style.display = 'none';
+  document.getElementById('coordBar').textContent = 'Hover over grid to inspect';
+});
+
+canvas.addEventListener('click', (e) => {
+  if (pickMode !== 'free') return;
+  const rect = canvas.getBoundingClientRect();
+  const c = Math.floor((e.clientX - rect.left) / cellW);
+  const r = Math.floor((e.clientY - rect.top)  / cellH);
+  if (!GRID || r < 0 || r >= ROWS || c < 0 || c >= COLS) return;
+  if (GRID[r][c] === 1) { showInstr('<span style="color:var(--coral)">Land cell</span> — select a water cell'); return; }
+
+  if (!startCell || (startCell && endCell)) {
+    startCell = [r,c]; endCell = null;
+    document.getElementById('mainLayout').classList.remove('goal-reached');
+  } else {
+    if (r===startCell[0]&&c===startCell[1]) return;
+    endCell = [r,c];
+  }
+  render(); checkNavReady(); updateStartEndStatus();
+});
+
+function updateInspector(r, c, lat, lon, cellType) {
+  const nearPort = findNearestPort(r, c);
+  document.getElementById('inspector').innerHTML = `
+    <div class="insp-row"><span class="insp-key">Row/Col</span><span class="insp-val">(${r}, ${c})</span></div>
+    <div class="insp-row"><span class="insp-key">Cell</span><span class="insp-val">${cellType}</span></div>
+    <div class="insp-row"><span class="insp-key">Lat</span><span class="insp-val">${lat}°N</span></div>
+    <div class="insp-row"><span class="insp-key">Lon</span><span class="insp-val">${lon}°E</span></div>
+    ${nearPort ? `<div class="insp-row"><span class="insp-key">Near</span><span class="insp-val" style="color:var(--gold)">${nearPort}</span></div>` : ''}
+  `;
+}
+
+// ════════════════════════════════════════════════
+//  PORT MODE
+// ════════════════════════════════════════════════
+function setPickMode(m) {
+  pickMode = m;
+  document.getElementById('btnFree').classList.toggle('active', m==='free');
+  document.getElementById('btnPort').classList.toggle('active', m==='port');
+  document.getElementById('freePickPanel').style.display = m==='free' ? 'block':'none';
+  document.getElementById('portPickPanel').style.display = m==='port' ? 'block':'none';
+}
+
+function buildPortList() {
+  const ul = document.getElementById('portList');
+  ul.innerHTML = '';
+  for (const [name, pos] of Object.entries(PORTS)) {
+    const col = PORT_COLORS[name] || C_PORT;
+    const li  = document.createElement('li');
+    li.className = 'port-item';
+    li.id = `port-${name}`;
+    li.innerHTML = `
+      <div class="port-dot" style="background:${col}"></div>
+      <span class="port-name">${name}</span>
+      <span class="port-rc">(${pos[0]},${pos[1]})</span>`;
+    li.onclick = () => selectPort(name, pos[0], pos[1]);
+    ul.appendChild(li);
+  }
+}
+
+function selectPort(name, r, c) {
+  if (!startCell || (startCell && endCell)) {
+    startCell = [r,c]; endCell = null;
+    document.querySelectorAll('.port-item').forEach(el=>el.classList.remove('selected-start','selected-end'));
+    document.getElementById(`port-${name}`)?.classList.add('selected-start');
+  } else {
+    if (r===startCell[0]&&c===startCell[1]) return;
+    endCell = [r,c];
+    document.getElementById(`port-${name}`)?.classList.add('selected-end');
+  }
+  render(); checkNavReady();
+}
+
+// ════════════════════════════════════════════════
+//  NAVIGATION API CALL
+// ════════════════════════════════════════════════
+async function runNavigation() {
+  if (!startCell||!endCell) return;
+  if (animFrame){ cancelAnimationFrame(animFrame); animFrame=null; }
+  route=[]; lastResult=null;
+  document.getElementById('navBtn').disabled = true;
+  document.getElementById('routeLog').innerHTML = '<div style="color:var(--gold)">🧭 Agent computing route...</div>';
+  document.getElementById('progBar').style.width='0%';
+  document.getElementById('mainLayout').classList.remove('goal-reached');
+  setStatus('running','Agent computing route...');
+
+  try {
+    const res = await fetch('/navigate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        start_row:startCell[0], start_col:startCell[1],
+        goal_row: endCell[0],   goal_col: endCell[1],
+      })
+    });
+
+    if (!res.ok){
+      const err = await res.json();
+      setStatus('error', err.detail||'API error');
+      document.getElementById('navBtn').disabled=false;
+      return;
+    }
+
+    lastResult = await res.json();
+    route      = lastResult.route;
+    document.getElementById('instrOverlay').style.opacity='0';
+    buildRouteLog(lastResult);
+    animateRoute();
+
+  } catch(e) {
+    setStatus('error','Cannot reach server');
+    console.error(e);
+  } finally {
+    document.getElementById('navBtn').disabled=false;
+  }
+}
+
+function clearAll() {
+  if (animFrame){cancelAnimationFrame(animFrame);animFrame=null;}
+  startCell=null;endCell=null;route=[];lastResult=null;animating=false;
+  document.getElementById('routeLog').innerHTML='<div style="color:var(--muted);font-size:10px;">Route steps will appear here...</div>';
+  document.getElementById('progBar').style.width='0%';
+  document.getElementById('statSteps').textContent='—';
+  document.getElementById('statKm').textContent='—';
+  document.getElementById('statBumps').textContent='—';
+  document.getElementById('statReward').textContent='—';
+  document.getElementById('goalResult').innerHTML='';
+  document.getElementById('instrOverlay').style.opacity='1';
+  document.getElementById('mainLayout').classList.remove('goal-reached');
+  setStatus('idle','Awaiting coordinates');
+  updateStartEndStatus();
+  document.querySelectorAll('.port-item').forEach(el=>el.classList.remove('selected-start','selected-end'));
+  render();
+}
+
+// ════════════════════════════════════════════════
+//  UI HELPERS
+// ════════════════════════════════════════════════
+function setStatus(type, label) {
+  const el = document.getElementById('missionStatus');
+  el.className = `status-row status-${type}`;
+  const map = {
+    idle:'Awaiting coordinates', ready:'Ready — click Navigate',
+    running:'Agent computing route...', done:'Route complete ✓', error:'Error',
+  };
+  document.getElementById('missionLabel').textContent = label || map[type] || type;
+}
+
+function updateStartEndStatus() {
+  const ss = document.getElementById('startStatus');
+  const es = document.getElementById('endStatus');
+  if (startCell){
+    ss.className='status-row status-ready';
+    document.getElementById('startLabel').textContent=`Start: (${startCell[0]}, ${startCell[1]})`;
+  } else {
+    ss.className='status-row status-idle';
+    document.getElementById('startLabel').textContent='Click map to set START';
+  }
+  if (endCell){
+    es.className='status-row status-ready';
+    document.getElementById('endLabel').textContent=`End: (${endCell[0]}, ${endCell[1]})`;
+  } else {
+    es.className='status-row status-idle';
+    document.getElementById('endLabel').textContent='Click map to set END';
+  }
+}
+
+function checkNavReady(){
+  const ready = !!(startCell&&endCell);
+  document.getElementById('navBtn').disabled = !ready;
+  if (ready) setStatus('ready');
+}
+
+function showInstr(msg){
+  const el = document.getElementById('instrOverlay');
+  el.innerHTML=msg; el.style.opacity='1';
+  setTimeout(()=>{
+    el.innerHTML=`<span>Click</span> any water cell to set <span>Start</span> → then click another to set <span>Destination</span>`;
+  },2500);
+}
+
+function updateStats(){
+  if (!lastResult) return;
+  document.getElementById('statSteps').textContent  = lastResult.steps.toLocaleString();
+  document.getElementById('statKm').textContent     = Math.round(lastResult.steps * KM_PER_CELL).toLocaleString();
+  document.getElementById('statBumps').textContent  = lastResult.bumps;
+  document.getElementById('statReward').textContent = Math.round(lastResult.total_reward);
+  const gEl = document.getElementById('goalResult');
+  if (lastResult.reached_goal){
+    gEl.innerHTML=`<div class="status-row status-done"><div class="status-dot"></div>🎯 Destination Reached!</div>`;
+  } else {
+    gEl.innerHTML=`<div class="status-row status-error"><div class="status-dot"></div>Fuel limit reached</div>`;
+  }
+}
+
+function buildRouteLog(result){
+  const log = document.getElementById('routeLog');
+  log.innerHTML = `<div class="log-entry" style="color:var(--gold);margin-bottom:4px;">
+    ── Route: ${result.steps} steps · ${result.bumps} bumps · ${Math.round(result.steps*KM_PER_CELL).toLocaleString()} km ──</div>`;
+}
+
+function updateRouteLog(upTo){
+  if (!lastResult||route.length===0) return;
+  const log  = document.getElementById('routeLog');
+  const show = Math.min(upTo, route.length);
+  if (show>0 && show%20===0){
+    const [r,c] = route[show-1];
+    const entry = document.createElement('div');
+    entry.className = 'log-entry highlight';
+    entry.textContent = `[${String(show).padStart(5,' ')}] → (${String(r).padStart(3,' ')}, ${String(c).padStart(3,' ')})`;
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+  }
+  if (show===route.length&&lastResult.reached_goal){
+    const entry = document.createElement('div');
+    entry.className = 'log-entry log-goal';
+    entry.textContent = `✅ GOAL REACHED at step ${show}!`;
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+  }
+}
+
+function findNearestPort(r,c){
+  let best=null, bd=Infinity;
+  for (const [name,pos] of Object.entries(PORTS)){
+    const d=Math.hypot(r-pos[0],c-pos[1]);
+    if(d<bd){bd=d;best=name;}
+  }
+  return bd<8?best:null;
+}
+
+// ════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════
+loadGrid();
+</script>
+</body>
+</html>
