@@ -139,7 +139,7 @@ class DuelingNavDQN(nn.Module):
 # ─────────────────────────────────────────────
 #  LOAD MODEL
 # ─────────────────────────────────────────────
-MODEL_PATH = Path("vishnu2_checkpoint.pth")
+MODEL_PATH = Path("vishnu2_deploy.pth")
 online_net = DuelingNavDQN(CFG).to(device)
 MODEL_LOADED = False
 
