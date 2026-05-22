@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY app.py .
 COPY indian_ocean_200x200.json .
-COPY vishnu2_checkpoint.pth .
+COPY vishnu2_deploy.pth .
 COPY static/ ./static/
 
 EXPOSE 8000
